@@ -472,6 +472,8 @@ define([
         this.listenTo(Adapt, 'assessments:complete', this.onAssessmentComplete);
       }
 
+      this.listenTo(Adapt, 'h5p:interaction', this.onH5PInteraction);
+
       // Standard completion events for the various collection types, i.e.
       // course, contentobjects, articles, blocks and components.
       _.each(_.keys(this.coreEvents), function(key) {
@@ -590,6 +592,36 @@ define([
       }
 
       return type;
+    },
+
+    onH5PInteraction: function(model, statement) {
+      if (!model || model.get('_type') !== 'component' && model.get('_component') !== 'h5p') {
+        return;
+      }
+
+      if (this.isComponentOnBlacklist(model.get('_component'))) {
+        // This component is on the blacklist, so do not send a statement.
+        return;
+      }
+
+      var description = {};
+      description[this.get('displayLang')] = this.stripHtml(model.get('body'));
+
+      objectDefinition = {
+        name: this.getNameObject(model),
+        description: description
+      };
+      var object = statement.object;
+      object.definition = {
+        ...objectDefinition,
+        ...object.definition
+      }
+      object.id = this.getUniqueIri(model);
+
+      statement = this.getStatement(statement.verb, object, statement.result, statement.context);
+
+      this.addGroupingActivity(model, statement)
+      this.sendStatement(statement);
     },
 
     /**
