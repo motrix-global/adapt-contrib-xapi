@@ -685,6 +685,20 @@ define([
         response: this.processInteractionResponse(object.definition.interactionType, view.getResponse())
       };
 
+      if (typeof view.getInteractionDuration === 'function') {
+        let duration = view.getInteractionDuration()
+        if (duration) {
+          result['duration'] = this.convertMillisecondsToISO8601Duration(duration);
+        }
+      }
+
+      if (typeof view.getResultExtensions === 'function') {
+        let extensions = view.getResultExtensions()
+        if (extensions) {
+          result['extensions'] = extensions;
+        }
+      }
+
       // Answered
       statement = this.getStatement(this.getVerb(ADL.verbs.answered), object, result);
 
