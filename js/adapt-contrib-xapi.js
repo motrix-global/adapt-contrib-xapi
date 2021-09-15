@@ -1090,6 +1090,11 @@ define([
           }
         });
       }
+
+      if (state.course && state.course._startId) {
+        let courseStart = Adapt.course.get("_start")
+        courseStart['_id'] = state.course._startId
+      }
     },
 
     /**
