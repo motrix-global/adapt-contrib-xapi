@@ -446,6 +446,8 @@ class XAPI extends Backbone.Model {
       this.listenTo(Adapt, 'assessments:complete', this.onAssessmentComplete);
     }
 
+    this.listenTo(Adapt, 'h5p:interaction', this.onH5PInteraction);
+
     // Standard completion events for the various collection types, i.e.
     // course, contentobjects, articles, blocks and components.
     Object.keys(this.coreEvents).forEach(key => {
@@ -566,6 +568,36 @@ class XAPI extends Backbone.Model {
     return type;
   }
 
+  async onH5PInteraction(model, statement) {
+    if (!model || model.get('_type') !== 'component' && model.get('_component') !== 'h5p') {
+      return;
+    }
+
+    if (this.isComponentOnBlacklist(model.get('_component'))) {
+      // This component is on the blacklist, so do not send a statement.
+      return;
+    }
+
+    var description = {};
+    description[this.get('displayLang')] = this.stripHtml(model.get('body'));
+
+    objectDefinition = {
+      name: this.getNameObject(model),
+      description: description
+    };
+    var object = statement.object;
+    object.definition = {
+      ...objectDefinition,
+      ...object.definition
+    }
+    object.id = this.getUniqueIri(model);
+
+    statement = this.getStatement(statement.verb, object, statement.result, statement.context);
+
+    this.addGroupingActivity(model, statement)
+    await this.sendStatement(statement);
+  }
+
   /**
    * Sends an 'answered' statement to the LRS.
    * @param {ComponentView} view - An instance of Adapt.ComponentView.
@@ -621,6 +653,20 @@ class XAPI extends Backbone.Model {
       completion,
       response: this.processInteractionResponse(object.definition.interactionType, view.getResponse())
     };
+
+    if (typeof view.getInteractionDuration === 'function') {
+      let duration = view.getInteractionDuration()
+      if (duration) {
+        result['duration'] = this.convertMillisecondsToISO8601Duration(duration);
+      }
+    }
+
+    if (typeof view.getResultExtensions === 'function') {
+      let extensions = view.getResultExtensions()
+      if (extensions) {
+        result['extensions'] = extensions;
+      }
+    }
 
     // Answered
     const statement = this.getStatement(this.getVerb(window.ADL.verbs.answered), object, result);
@@ -996,6 +1042,11 @@ class XAPI extends Backbone.Model {
           Adapt.log.warn('adapt-contrib-xapi: Unable to restore state for block: ' + stateObject._id);
         }
       });
+    }
+
+    if (state.course && state.course._startId) {
+      let courseStart = Adapt.course.get("_start")
+      courseStart['_id'] = state.course._startId
     }
   }
 
